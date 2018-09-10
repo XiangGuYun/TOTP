@@ -25,14 +25,15 @@ public class EditActivity extends BaseActivity {
     private EditText editText;
     View ll;
 
-    @Override
-    protected void onKeyboardHide() {
-        super.onKeyboardHide();
-        Intent intent = new Intent();
-        intent.putExtra("num", editText.getText().toString());
-       setResult(1, intent);
-       finish();
-    }
+//    @Override
+//    protected void onKeyboardHide() {
+//        super.onKeyboardHide();
+//        Intent intent = new Intent();
+//        intent.putExtra("num", editText.getText().toString());
+//       setResult(1, intent);
+//       finish();
+//    }
+
 
     @SuppressLint("WrongViewCast")
     @Override

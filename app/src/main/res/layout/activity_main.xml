@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.example.administrator.totp.MainActivity"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:background="#eeeeee"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
@@ -21,7 +20,7 @@
     <LinearLayout
         android:layout_marginTop="50dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
         android:id="@+id/ll">
 
@@ -31,22 +30,44 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
         <de.hdodenhof.circleimageview.CircleImageView
+            android:id="@+id/civ"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:src="@drawable/round"/>
+        <com.timqi.sectorprogressview.ColorfulRingProgressView
+            android:id="@+id/prsView"
+            android:layout_width="280dp"
+            android:layout_height="280dp"
+            android:alpha="0.6"
+            android:layout_gravity="center"
+            app:strokeWidth="10dp"
+            app:bgColor="#eeeeee"
+            app:fgColor="#ff765c"
+            app:percent="0"
+            app:startAngle="0"     />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:textSize="40sp"
             android:gravity="center"
-            android:text="00000000"
+            android:text="000000"
+            android:textColor="#000000"
             android:id="@+id/tv"/>
+        <TextView
+            android:id="@+id/tvClock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textSize="16sp"
+            android:textColor="#4b4b4b"
+            android:layout_marginTop="40dp"/>
     </FrameLayout>
 
 
-    <TextView
+    <EditText
+        android:cursorVisible="false"
         android:inputType="numberPassword"
         android:maxLength="10"
         android:layout_marginTop="30dp"
@@ -72,5 +93,28 @@
         android:layout_marginLeft="20dp"
         android:layout_marginRight="20dp"
         android:onClick="generate"/>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+                <ImageView
+                    android:onClick="weichat"
+                    android:layout_marginRight="40dp"
+                    android:layout_gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@mipmap/weichat"/>
+                <ImageView
+                    android:onClick="email"
+                    android:layout_marginLeft="40dp"
+                    android:layout_gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@mipmap/email"/>
+
+        </FrameLayout>
+
+
     </LinearLayout>
 </FrameLayout>

@@ -1,53 +1,95 @@
 package com.example.administrator.totp;
 
-import android.app.Activity;
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Build;
-import android.support.annotation.RequiresApi;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.afollestad.materialdialogs.MaterialDialog;
+import com.tencent.mm.opensdk.modelmsg.SendMessageToWX;
+import com.tencent.mm.opensdk.modelmsg.WXMediaMessage;
+import com.tencent.mm.opensdk.modelmsg.WXTextObject;
+import com.tencent.mm.opensdk.openapi.IWXAPI;
+import com.tencent.mm.opensdk.openapi.WXAPIFactory;
+import com.timqi.sectorprogressview.ColorfulRingProgressView;
 
-import java.security.InvalidKeyException;
-import java.security.Key;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.lang.ref.WeakReference;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
-import javax.crypto.KeyGenerator;
+import de.hdodenhof.circleimageview.CircleImageView;
 
 public class MainActivity extends BaseActivity{
 
     TextView tv;
-    TextView et;
-    private SimpleDateFormat sdf, sdfmm;
+    EditText et;
+    private SimpleDateFormat sdf, sdfmm, sdfHHmm, sdfAll;
     private long num1;
     private String leftStr;
     private ViewGroup ll;
     FrameLayout fl;
+    private TextView tvClock;
+    private long endTime;
+    private long startTime;
+    private int secs;
+    CircleImageView civ;
+    ColorfulRingProgressView sectorProgressView;
+    MyHandler myHandler;
+    private static final String APP_ID = "wx54c9985a2afe745a";    //这个APP_ID就是注册APP的时候生成的
+    private static final String APP_SECRET = "b01b712e083d4939c42b76950b1826fe";
+    private IWXAPI api;
+    private CharSequence phoneNum = "1391654344";
+    private SimpleDateFormat sdfYMD;
+    private SimpleDateFormat sdf_mm_ss;
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        switch (requestCode) {
+            case 1:
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    msg();
+                } else {
+                    Toast.makeText(this, "权限授予未成功", Toast.LENGTH_SHORT).show();
+                }
+                break;
+        }
+    }
+
+    @Override
+    protected void onKeyboardHide() {
+        super.onKeyboardHide();
+        showToast("down");
+        et.setCursorVisible(false);
+    }
+
+    @Override
+    protected void onKeyboardShow() {
+        super.onKeyboardShow();
+        showToast("up");
+        et.setCursorVisible(true);
+    }
 
     @Override
     public void onBackPressed() {
@@ -96,20 +138,158 @@ public class MainActivity extends BaseActivity{
         statusBarView.setBackgroundColor(Color.parseColor("#FF711B"));
         decorViewGroup.addView(statusBarView);
         setContentView(R.layout.activity_main);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
+        sdfHHmm = new SimpleDateFormat("HH:mm");
+        sdfAll = new SimpleDateFormat("HH:mm:ss");
+        sdfYMD = new SimpleDateFormat("yyyy年MM月dd日 ");
         fl = findViewById(R.id.fl);
         ll = findViewById(R.id.ll);
+        sectorProgressView = findViewById(R.id.prsView);
+        tvClock = findViewById(R.id.tvClock);
+        civ = findViewById(R.id.civ);
         ll.addOnLayoutChangeListener(this);
         tv = findViewById(R.id.tv);
         et = findViewById(R.id.et);
         sdf = new SimpleDateFormat("yyMMddHH");
         sdfmm = new SimpleDateFormat("mm");
-        //ll.addOnLayoutChangeListener(this);
-        et.setOnClickListener(view->{
-            startActivityForResult(new Intent(MainActivity.this, EditActivity.class), 1);
-        });
+        ll.addOnLayoutChangeListener(this);
+       et.setOnClickListener(v-> et.setCursorVisible(true));
+       sdf_mm_ss = new SimpleDateFormat("mm:ss");
+       myHandler = new MyHandler(new WeakReference<>(this));
+        try {
+            int mm = Integer.parseInt(sdfmm.format(new Date())) ;
+            int newmm = mm-mm%5;
+            endTime = sdfHHmm.parse(getRightClock(newmm)).getTime();
+            String startTimeStr = sdfAll.format(new Date());
+            startTime = sdfAll.parse(startTimeStr).getTime();
+            secs = (int) ((endTime-startTime)/(1000L));
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+//        Timer timer = new Timer();
+//        timer.schedule(new TimerTask() {
+//            @Override
+//            public void run() {
+//                myHandler.sendEmptyMessage(0x123);
+//            }
+//        }, new Date(), 1000);
+
+        new Thread(()->{
+            try {
+                while (true){
+                    myHandler.sendEmptyMessage(0x123);
+                    Thread.sleep(1000);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+        api = WXAPIFactory.createWXAPI(this, APP_ID, true);
+        api.registerApp(APP_ID);
+
+    }
+
+    /**
+     * 短信分享
+     * @param view
+     */
+    public void email(View view) {
+        if(ContextCompat.checkSelfPermission(
+                this, Manifest.permission.SEND_SMS
+        )!= PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.SEND_SMS }, 1);
+        }else{
+            msg();
+        }
+    }
+
+    //"请在2018年10月1日 08时05分之前使用临时密码898989"
+    private void msg() {
+        if(tv.getText().toString().equals("000000")){
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"));
+        int mm = Integer.parseInt(sdfmm.format(new Date()));
+        int newmm = mm-mm%5;
+        String leftStr = sdfYMD.format(new Date());
+        String rightStr = getRightClock(newmm);
+        intent.putExtra("sms_body", TextUtils.concat("温馨提示\n","请在",
+                leftStr,
+                rightStr.replace(":","时").concat("分"),
+                "之前使用临时密码",
+                tv.getText().toString(),
+                "开门-24小时安保服务专家，保家家平安。"));
+        startActivity(intent);
+    }
+
+    private String buildTransaction(String type){
+        return type==null?String.valueOf(System.currentTimeMillis()):type+System.currentTimeMillis();
+    }
+
+    public void weichat(View view) {
+        //api.openWXApp();//启动微信
+        if(tv.getText().toString().equals("000000")){
+            return;
+        }
+        WXTextObject textObject = new WXTextObject();
+        int mm = Integer.parseInt(sdfmm.format(new Date()));
+        int newmm = mm-mm%5;
+        String leftStr = sdfYMD.format(new Date());
+        String rightStr = getRightClock(newmm);
+        String text = TextUtils.concat("温馨提示\n","请在",
+                leftStr,
+                rightStr.replace(":","时").concat("分"),
+                "之前使用临时密码",
+                tv.getText().toString(),
+                "开门-24小时安保服务专家，保家家平安。").toString();
+        textObject.text = text;
+        WXMediaMessage message = new WXMediaMessage();
+        message.mediaObject = textObject;
+        message.description = text;
+        SendMessageToWX.Req req = new SendMessageToWX.Req();
+        req.message = message;
+        req.transaction = buildTransaction("text");
+        req.scene = SendMessageToWX.Req.WXSceneSession;
+        api.sendReq(req);
+    }
+
+    static class MyHandler extends Handler{
+
+        private WeakReference<MainActivity> act;
+
+        public MyHandler(WeakReference<MainActivity> act) {
+            this.act = act;
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            if(msg.what==0x123){
+                act.get().tvClock.setText(act.get().sdf_mm_ss.format(act.get().secs*1000L));
+                //act.get().sectorProgressView.setPercent(100f*(299-act.get().secs)/299);
+                act.get().secs--;
+                if(act.get().secs==-1){
+                    act.get().secs=299;
+                    act.get().gen();
+                }
+//                if(act.get().secs==0){
+//                    act.get().secs=299;
+//                }
+//                if(act.get().secs==288){
+//                    act.get().gen();
+//                }
+            }
+        }
     }
 
     public void generate(View view) {
+        gen();
+    }
+
+    private void gen() {
+        et.setCursorVisible(false);
         if(TextUtils.isEmpty(et.getText().toString())){
             return;
         }
@@ -135,23 +315,39 @@ public class MainActivity extends BaseActivity{
                 builder.append(h.toCharArray()[i]);
             }
         }
+
         long num = Long.valueOf(builder.toString(), 16);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            num1 = Math.floorMod(num, (long) Math.pow(10, 8));
+            num1 = Math.floorMod(num, (long) Math.pow(10, 6));
             String result = String.valueOf(num1);
-            if(result.length()<8){
+            if(result.length()==5){
                 tv.setText("0"+result);
             }else {
+                Log.d("Test", result);
                 tv.setText(result);
             }
         }else {
-            num1 =  num - floorDiv(num, (long) Math.pow(10, 8)) * (long) Math.pow(10, 8);
+            num1 =  num - floorDiv(num, (long) Math.pow(10, 6)) * (long) Math.pow(10, 6);
             String result = String.valueOf(num1);
-            if(result.length()<8){
+            if(result.length()==5){
                 tv.setText("0"+result);
             }else {
                 tv.setText(result);
             }
+        }
+    }
+
+    private String getRightClock(int newmm) {
+        if(newmm+5!=60){
+            return new SimpleDateFormat("HH:").format(new Date())+((newmm+5)<10?("0"+(newmm+5)):(newmm+5));
+        }else {
+            int hour = Integer.parseInt(new SimpleDateFormat("HH").format(new Date()));
+            if(hour==23){
+                hour = 0;
+            }else {
+                hour++;
+            }
+            return hour+":"+"00";
         }
     }
 
